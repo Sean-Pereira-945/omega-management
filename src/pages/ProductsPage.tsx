@@ -66,6 +66,23 @@ export default function ProductsPage() {
   })
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true)
+  const currentPage = useMemo(() => {
+    const raw = searchParams.get('page')
+    if (!raw) return 1
+    const parsed = Number(raw)
+    return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
+  }, [searchParams])
+  const itemsPerPage = 9
+
+  const updatePage = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams)
+    if (nextPage <= 1) {
+      next.delete('page')
+    } else {
+      next.set('page', String(nextPage))
+    }
+    setSearchParams(next)
+  }
   const columnButtonRef = useRef<HTMLButtonElement | null>(null)
   const columnPanelRef = useRef<HTMLDivElement | null>(null)
   const [isSortOpen, setIsSortOpen] = useState(false)
@@ -185,6 +202,7 @@ export default function ProductsPage() {
     } else {
       next.delete('search')
     }
+    next.delete('page')
     setSearchParams(next)
   }, [debouncedSearch, searchParams, setSearchParams])
 
@@ -202,12 +220,14 @@ export default function ProductsPage() {
     } else {
       next.delete('category')
     }
+    next.delete('page')
     setSearchParams(next)
   }
 
   const updateSort = (value: string) => {
     const next = new URLSearchParams(searchParams)
     next.set('sort', value)
+    next.delete('page')
     setSearchParams(next)
   }
 
@@ -365,6 +385,15 @@ export default function ProductsPage() {
         return list.sort((a, b) => a.price - b.price)
     }
   }, [filteredProducts, sort])
+
+  const totalPages = useMemo(() => {
+    return Math.max(Math.ceil(sortedProducts.length / itemsPerPage), 1)
+  }, [sortedProducts])
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return sortedProducts.slice(start, start + itemsPerPage)
+  }, [sortedProducts, currentPage])
 
   const visibleCategories = showAllCategories ? categories : categories.slice(0, 10)
   const hiddenCount = Math.max(categories.length - visibleCategories.length, 0)
@@ -843,7 +872,7 @@ export default function ProductsPage() {
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid gap-6 p-6 md:grid-cols-2 xl:grid-cols-3">
-            {sortedProducts.map((product, index) => (
+            {paginatedProducts.map((product, index) => (
               <ScrollReveal
                 key={product.id}
                 delay={(index % 3) * 60}
@@ -883,7 +912,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedProducts.map((product) => {
+                {paginatedProducts.map((product) => {
                   const stockMeta = getStockMeta(product.stock)
                   return (
                     <tr
@@ -958,6 +987,36 @@ export default function ProductsPage() {
             </table>
           </div>
         )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 ? (
+          <div className="flex flex-wrap items-center justify-between border-t border-[var(--border)] px-6 py-4 gap-4 bg-[var(--surface-muted)]/30 rounded-b-3xl">
+            <p className="text-xs text-[var(--text-muted)]">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, sortedProducts.length)} of {sortedProducts.length} entries
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => updatePage(currentPage - 1)}
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-primary)] disabled:opacity-40 transition hover:bg-[var(--surface-muted)] active:scale-95"
+              >
+                Previous
+              </button>
+              <span className="flex items-center px-2 text-xs font-semibold text-[var(--text-primary)]">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => updatePage(currentPage + 1)}
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-primary)] disabled:opacity-40 transition hover:bg-[var(--surface-muted)] active:scale-95"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   )
